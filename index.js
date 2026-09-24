@@ -1,29 +1,936 @@
-const { Client, GatewayIntentBits, PermissionsBitField, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
-const { DISCORD_TOKEN: TOKEN, CLIENT_ID, GUILD_ID } = process.env;
-if (!TOKEN || !CLIENT_ID || !GUILD_ID) process.exit(1);
-const commands = [
- new SlashCommandBuilder().setName('rules').setDescription('عرض القوانين'),
- new SlashCommandBuilder().setName('server').setDescription('معلومات السيرفر'),
- new SlashCommandBuilder().setName('setup').setDescription('تجهيز الترحيب والتذاكر'),
- new SlashCommandBuilder().setName('clear').setDescription('مسح الرسائل').addIntegerOption(o=>o.setName('amount').setDescription('العدد').setRequired(true).setMinValue(1).setMaxValue(100)),
- new SlashCommandBuilder().setName('kick').setDescription('طرد عضو').addUserOption(o=>o.setName('user').setDescription('العضو').setRequired(true)),
- new SlashCommandBuilder().setName('ban').setDescription('حظر عضو').addUserOption(o=>o.setName('user').setDescription('العضو').setRequired(true)),
- new SlashCommandBuilder().setName('clan').setDescription('معلومات كلان').addStringOption(o=>o.setName('name').setDescription('اسم الكلان').setRequired(true))
-].map(x=>x.toJSON());
-async function register(){const rest=new REST({version:'10'}).setToken(TOKEN); await rest.put(Routes.applicationGuildCommands(CLIENT_ID,GUILD_ID),{body:commands});}
-client.once('ready',async()=>{console.log(`✅ ${client.user.tag}`); client.user.setPresence({activities:[{name:'Mount & Blade ⚔️',type:0}],status:'online'}); try{await register();console.log('✅ Commands registered')}catch(e){console.error(e)}});
-client.on('guildMemberAdd',async m=>{const c=m.guild.channels.cache.find(x=>x.name==='welcome'&&x.type===ChannelType.GuildText);if(c)c.send({embeds:[new EmbedBuilder().setTitle('⚔️ أهلاً بك في المملكة!').setDescription(`مرحباً ${m} 👋\nنورت سيرفر **Mount & Blade**!`).setThumbnail(m.user.displayAvatarURL())]}).catch(()=>{});});
-client.on('interactionCreate',async i=>{
- if(i.isButton()&&i.customId==='open_ticket'){const old=i.guild.channels.cache.find(c=>c.name===`ticket-${i.user.id}`);if(old)return i.reply({content:`🎫 عندك تذكرة: ${old}`,ephemeral:true});const c=await i.guild.channels.create({name:`ticket-${i.user.id}`,type:ChannelType.GuildText,permissionOverwrites:[{id:i.guild.roles.everyone.id,deny:[PermissionsBitField.Flags.ViewChannel]},{id:i.user.id,allow:[PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages,PermissionsBitField.Flags.ReadMessageHistory]}]});const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة').setStyle(ButtonStyle.Danger));await c.send({content:`${i.user}`,embeds:[new EmbedBuilder().setTitle('🎫 تذكرة الدعم').setDescription('اكتب مشكلتك هنا.')],components:[row]});return i.reply({content:`✅ فتحت: ${c}`,ephemeral:true});}
- if(i.isButton()&&i.customId==='close_ticket'){if(!i.member.permissions.has(PermissionsBitField.Flags.ManageChannels))return i.reply({content:'❌ تحتاج Manage Channels.',ephemeral:true});await i.reply('🔒 سيتم الإغلاق...');setTimeout(()=>i.channel.delete().catch(()=>{}),1000);return;}
- if(!i.isChatInputCommand())return;
- if(i.commandName==='rules')return i.reply({embeds:[new EmbedBuilder().setTitle('📜 قوانين المملكة').setDescription('1️⃣ الاحترام\n2️⃣ ممنوع السب والشتم\n3️⃣ ممنوع التخريب\n4️⃣ ممنوع السبام\n5️⃣ الالتزام بالإدارة')]});
- if(i.commandName==='server')return i.reply({embeds:[new EmbedBuilder().setTitle('🏰 Mount & Blade').setDescription('⚔️ كلانات\n🎖️ رتب\n🎫 تذاكر\n🛡️ إدارة\n📜 قوانين')]});
- if(i.commandName==='clan'){const n=i.options.getString('name');return i.reply({embeds:[new EmbedBuilder().setTitle('⚔️ Clan').setDescription(`🏰 **الكلان:** ${n}\n👑 **العضو:** ${i.user}`)]});}
- if(i.commandName==='clear'){if(!i.member.permissions.has(PermissionsBitField.Flags.ManageMessages))return i.reply({content:'❌ تحتاج Manage Messages.',ephemeral:true});const n=i.options.getInteger('amount');await i.channel.bulkDelete(n,true);return i.reply({content:`🧹 تم مسح ${n} رسالة.`,ephemeral:true});}
- if(i.commandName==='kick'){if(!i.member.permissions.has(PermissionsBitField.Flags.KickMembers))return i.reply({content:'❌ تحتاج Kick Members.',ephemeral:true});const u=i.options.getUser('user'),m=await i.guild.members.fetch(u.id);if(!m.kickable)return i.reply({content:'❌ لا أستطيع طرده.',ephemeral:true});await m.kick();return i.reply(`👢 تم طرد **${u.tag}**.`);}
- if(i.commandName==='ban'){if(!i.member.permissions.has(PermissionsBitField.Flags.BanMembers))return i.reply({content:'❌ تحتاج Ban Members.',ephemeral:true});const u=i.options.getUser('user');await i.guild.members.ban(u.id);return i.reply(`🔨 تم حظر **${u.tag}**.`);}
- if(i.commandName==='setup'){if(!i.member.permissions.has(PermissionsBitField.Flags.ManageGuild))return i.reply({content:'❌ للإدارة فقط.',ephemeral:true});let w=i.guild.channels.cache.find(c=>c.name==='welcome'&&c.type===ChannelType.GuildText);if(!w)w=await i.guild.channels.create({name:'welcome',type:ChannelType.GuildText});let t=i.guild.channels.cache.find(c=>c.name==='tickets'&&c.type===ChannelType.GuildText);if(!t)t=await i.guild.channels.create({name:'tickets',type:ChannelType.GuildText});const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('open_ticket').setLabel('🎫 فتح تذكرة').setStyle(ButtonStyle.Primary));await t.send({embeds:[new EmbedBuilder().setTitle('🎫 الدعم الفني').setDescription('اضغط الزر لفتح تذكرة.')],components:[row]});return i.reply({content:`✅ تم تجهيز ${w} و ${t}.`,ephemeral:true});}
+const {
+  Client,
+  GatewayIntentBits,
+  PermissionsBitField,
+  ChannelType,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  SlashCommandBuilder,
+  REST,
+  Routes
+} = require("discord.js");
+
+// ===============================
+// إعداد البوت
+// ===============================
+
+const TOKEN = process.env.DISCORD_TOKEN;
+
+// Application ID
+const CLIENT_ID = "1552623061373550633";
+
+// Server ID
+const GUILD_ID = "1552625064309166161";
+
+if (!TOKEN) {
+  console.error("❌ لم يتم العثور على DISCORD_TOKEN في Railway Variables");
+  process.exit(1);
+}
+
+// ===============================
+// تشغيل البوت
+// ===============================
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
+  ]
 });
+
+// ===============================
+// أوامر البوت
+// ===============================
+
+const commands = [
+
+  new SlashCommandBuilder()
+    .setName("rules")
+    .setDescription("عرض قوانين السيرفر"),
+
+  new SlashCommandBuilder()
+    .setName("server")
+    .setDescription("معلومات السيرفر"),
+
+  new SlashCommandBuilder()
+    .setName("setup")
+    .setDescription("تجهيز السيرفر تلقائياً"),
+
+  new SlashCommandBuilder()
+    .setName("clear")
+    .setDescription("مسح الرسائل")
+    .addIntegerOption(option =>
+      option
+        .setName("amount")
+        .setDescription("عدد الرسائل")
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(100)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("طرد عضو")
+    .addUserOption(option =>
+      option
+        .setName("user")
+        .setDescription("العضو")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("حظر عضو")
+    .addUserOption(option =>
+      option
+        .setName("user")
+        .setDescription("العضو")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("clan")
+    .setDescription("عرض معلومات كلان")
+    .addStringOption(option =>
+      option
+        .setName("name")
+        .setDescription("اسم الكلان")
+        .setRequired(true)
+    )
+
+].map(command => command.toJSON());
+
+// ===============================
+// إنشاء Category
+// ===============================
+
+async function getOrCreateCategory(guild, name) {
+
+  let category = guild.channels.cache.find(
+    channel =>
+      channel.name === name &&
+      channel.type === ChannelType.GuildCategory
+  );
+
+  if (!category) {
+
+    category = await guild.channels.create({
+      name: name,
+      type: ChannelType.GuildCategory
+    });
+
+  }
+
+  return category;
+}
+
+// ===============================
+// إنشاء Text Channel
+// ===============================
+
+async function getOrCreateChannel(guild, name, parent) {
+
+  let channel = guild.channels.cache.find(
+    c =>
+      c.name === name &&
+      c.type === ChannelType.GuildText
+  );
+
+  if (!channel) {
+
+    channel = await guild.channels.create({
+      name: name,
+      type: ChannelType.GuildText,
+      parent: parent?.id
+    });
+
+  }
+
+  return channel;
+}
+
+// ===============================
+// تجهيز السيرفر
+// ===============================
+
+async function setupServer(guild) {
+
+  console.log("⚙️ بدء تجهيز سيرفر Mount & Blade...");
+
+  // Categories
+  const infoCategory =
+    await getOrCreateCategory(
+      guild,
+      "🏰・مملكة Mount & Blade"
+    );
+
+  const staffCategory =
+    await getOrCreateCategory(
+      guild,
+      "🛡️・الإدارة"
+    );
+
+  const supportCategory =
+    await getOrCreateCategory(
+      guild,
+      "🎫・الدعم"
+    );
+
+  // Channels
+  const welcome =
+    await getOrCreateChannel(
+      guild,
+      "welcome",
+      infoCategory
+    );
+
+  const rules =
+    await getOrCreateChannel(
+      guild,
+      "rules",
+      infoCategory
+    );
+
+  const announcements =
+    await getOrCreateChannel(
+      guild,
+      "announcements",
+      infoCategory
+    );
+
+  const tickets =
+    await getOrCreateChannel(
+      guild,
+      "tickets",
+      supportCategory
+    );
+
+  await getOrCreateChannel(
+    guild,
+    "staff-chat",
+    staffCategory
+  );
+
+  // ===============================
+  // الرتب
+  // ===============================
+
+  const roles = [
+
+    "👑・Owner",
+    "🛡️・Admin",
+    "⚔️・Moderator",
+    "🏰・Clan Leader",
+    "🎖️・Member"
+
+  ];
+
+  for (const roleName of roles) {
+
+    const exists =
+      guild.roles.cache.some(
+        role => role.name === roleName
+      );
+
+    if (!exists) {
+
+      await guild.roles.create({
+        name: roleName,
+        reason: "Mount & Blade Auto Setup"
+      });
+
+      console.log(`✅ تم إنشاء رتبة ${roleName}`);
+
+    }
+
+  }
+
+  // ===============================
+  // القوانين
+  // ===============================
+
+  if (rules.messages.cache.size === 0) {
+
+    const rulesEmbed =
+      new EmbedBuilder()
+        .setTitle("📜 قوانين مملكة Mount & Blade")
+        .setDescription(
+`
+⚔️ **قوانين السيرفر**
+
+1️⃣ احترام جميع الأعضاء.
+
+2️⃣ ممنوع السب والشتم.
+
+3️⃣ ممنوع السبام والإزعاج.
+
+4️⃣ ممنوع التخريب.
+
+5️⃣ الالتزام بتعليمات الإدارة.
+
+6️⃣ ممنوع نشر روابط مشبوهة.
+
+7️⃣ استخدم التذاكر للدعم والمشاكل.
+
+8️⃣ استمتع باللعب وحافظ على روح المنافسة.
+`
+        )
+        .setTimestamp();
+
+    await rules.send({
+      embeds: [rulesEmbed]
+    });
+
+  }
+
+  // ===============================
+  // رسالة الترحيب
+  // ===============================
+
+  if (welcome.messages.cache.size === 0) {
+
+    const welcomeEmbed =
+      new EmbedBuilder()
+        .setTitle("⚔️ أهلاً بك في المملكة!")
+        .setDescription(
+`
+مرحباً بك 👋
+
+🏰 نورت سيرفر **Mount & Blade**
+
+📜 اقرأ القوانين
+⚔️ شارك في الكلانات
+🎫 استخدم التذاكر عند الحاجة
+
+نتمنى لك وقتاً ممتعاً!
+`
+        )
+        .setTimestamp();
+
+    await welcome.send({
+      embeds: [welcomeEmbed]
+    });
+
+  }
+
+  // ===============================
+  // التذاكر
+  // ===============================
+
+  if (tickets.messages.cache.size === 0) {
+
+    const ticketButton =
+      new ActionRowBuilder().addComponents(
+
+        new ButtonBuilder()
+          .setCustomId("open_ticket")
+          .setLabel("🎫 فتح تذكرة")
+          .setStyle(ButtonStyle.Primary)
+
+      );
+
+    const ticketEmbed =
+      new EmbedBuilder()
+        .setTitle("🎫 الدعم الفني")
+        .setDescription(
+          "اضغط الزر بالأسفل لفتح تذكرة مع الإدارة."
+        );
+
+    await tickets.send({
+      embeds: [ticketEmbed],
+      components: [ticketButton]
+    });
+
+  }
+
+  console.log("✅ اكتمل تجهيز السيرفر!");
+
+}
+
+// ===============================
+// عند تشغيل البوت
+// ===============================
+
+client.once("ready", async () => {
+
+  console.log(
+    `✅ البوت يعمل: ${client.user.tag}`
+  );
+
+  client.user.setPresence({
+
+    activities: [
+      {
+        name: "Mount & Blade ⚔️",
+        type: 0
+      }
+    ],
+
+    status: "online"
+
+  });
+
+  try {
+
+    // تسجيل الأوامر
+    const rest =
+      new REST({
+        version: "10"
+      }).setToken(TOKEN);
+
+    await rest.put(
+
+      Routes.applicationGuildCommands(
+        CLIENT_ID,
+        GUILD_ID
+      ),
+
+      {
+        body: commands
+      }
+
+    );
+
+    console.log(
+      "✅ تم تسجيل أوامر Slash."
+    );
+
+    // جلب السيرفر
+    const guild =
+      await client.guilds.fetch(GUILD_ID);
+
+    // التجهيز
+    await setupServer(guild);
+
+  } catch (error) {
+
+    console.error(
+      "❌ حدث خطأ:",
+      error
+    );
+
+  }
+
+});
+
+// ===============================
+// ترحيب بالأعضاء
+// ===============================
+
+client.on(
+  "guildMemberAdd",
+  async member => {
+
+    const channel =
+      member.guild.channels.cache.find(
+        channel =>
+          channel.name === "welcome" &&
+          channel.type === ChannelType.GuildText
+      );
+
+    if (!channel) return;
+
+    const embed =
+      new EmbedBuilder()
+        .setTitle("⚔️ أهلاً بك!")
+        .setDescription(
+`
+مرحباً ${member} 👋
+
+نورت سيرفر **Mount & Blade** 🏰
+
+📜 اقرأ القوانين
+⚔️ استمتع معنا
+🎫 افتح تذكرة إذا احتجت مساعدة
+`
+        )
+        .setThumbnail(
+          member.user.displayAvatarURL()
+        )
+        .setTimestamp();
+
+    await channel.send({
+      embeds: [embed]
+    }).catch(() => {});
+
+  }
+);
+
+// ===============================
+// التفاعلات
+// ===============================
+
+client.on(
+  "interactionCreate",
+  async interaction => {
+
+    // ===========================
+    // فتح تذكرة
+    // ===========================
+
+    if (
+      interaction.isButton() &&
+      interaction.customId === "open_ticket"
+    ) {
+
+      const existing =
+        interaction.guild.channels.cache.find(
+          channel =>
+            channel.name ===
+            `ticket-${interaction.user.id}`
+        );
+
+      if (existing) {
+
+        return interaction.reply({
+          content:
+            `🎫 لديك تذكرة مفتوحة بالفعل: ${existing}`,
+          ephemeral: true
+        });
+
+      }
+
+      const ticketChannel =
+        await interaction.guild.channels.create({
+
+          name:
+            `ticket-${interaction.user.id}`,
+
+          type:
+            ChannelType.GuildText,
+
+          parent:
+            interaction.channel.parentId,
+
+          permissionOverwrites: [
+
+            {
+              id:
+                interaction.guild.roles.everyone.id,
+
+              deny: [
+                PermissionsBitField.Flags.ViewChannel
+              ]
+            },
+
+            {
+              id:
+                interaction.user.id,
+
+              allow: [
+
+                PermissionsBitField.Flags.ViewChannel,
+
+                PermissionsBitField.Flags.SendMessages,
+
+                PermissionsBitField.Flags.ReadMessageHistory
+
+              ]
+            }
+
+          ]
+
+        });
+
+      const closeButton =
+        new ActionRowBuilder().addComponents(
+
+          new ButtonBuilder()
+
+            .setCustomId("close_ticket")
+
+            .setLabel("🔒 إغلاق التذكرة")
+
+            .setStyle(
+              ButtonStyle.Danger
+            )
+
+        );
+
+      const embed =
+        new EmbedBuilder()
+
+          .setTitle("🎫 تذكرة الدعم")
+
+          .setDescription(
+            "اكتب مشكلتك هنا وسيتم الرد عليك من الإدارة."
+          );
+
+      await ticketChannel.send({
+
+        content:
+          `${interaction.user}`,
+
+        embeds: [
+          embed
+        ],
+
+        components: [
+          closeButton
+        ]
+
+      });
+
+      return interaction.reply({
+
+        content:
+          `✅ تم فتح التذكرة: ${ticketChannel}`,
+
+        ephemeral: true
+
+      });
+
+    }
+
+    // ===========================
+    // إغلاق التذكرة
+    // ===========================
+
+    if (
+      interaction.isButton() &&
+      interaction.customId === "close_ticket"
+    ) {
+
+      if (
+        !interaction.member.permissions.has(
+          PermissionsBitField.Flags.ManageChannels
+        )
+      ) {
+
+        return interaction.reply({
+
+          content:
+            "❌ تحتاج صلاحية Manage Channels.",
+
+          ephemeral: true
+
+        });
+
+      }
+
+      await interaction.reply(
+        "🔒 سيتم إغلاق التذكرة..."
+      );
+
+      setTimeout(() => {
+
+        interaction.channel
+          .delete()
+          .catch(() => {});
+
+      }, 1200);
+
+      return;
+
+    }
+
+    // ===========================
+    // Slash Commands
+    // ===========================
+
+    if (!interaction.isChatInputCommand())
+      return;
+
+    // ===========================
+    // SETUP
+    // ===========================
+
+    if (
+      interaction.commandName === "setup"
+    ) {
+
+      if (
+        !interaction.member.permissions.has(
+          PermissionsBitField.Flags.ManageGuild
+        )
+      ) {
+
+        return interaction.reply({
+
+          content:
+            "❌ هذا الأمر للإدارة فقط.",
+
+          ephemeral: true
+
+        });
+
+      }
+
+      await setupServer(
+        interaction.guild
+      );
+
+      return interaction.reply({
+
+        content:
+          "✅ تم تجهيز السيرفر!",
+
+        ephemeral: true
+
+      });
+
+    }
+
+    // ===========================
+    // RULES
+    // ===========================
+
+    if (
+      interaction.commandName === "rules"
+    ) {
+
+      return interaction.reply({
+
+        embeds: [
+
+          new EmbedBuilder()
+
+            .setTitle(
+              "📜 قوانين السيرفر"
+            )
+
+            .setDescription(
+`
+⚔️ الاحترام
+🚫 منع السبام
+🚫 منع التخريب
+🛡️ الالتزام بالإدارة
+🎫 استخدام التذاكر للدعم
+`
+            )
+
+        ]
+
+      });
+
+    }
+
+    // ===========================
+    // SERVER
+    // ===========================
+
+    if (
+      interaction.commandName === "server"
+    ) {
+
+      return interaction.reply({
+
+        embeds: [
+
+          new EmbedBuilder()
+
+            .setTitle(
+              "🏰 Mount & Blade"
+            )
+
+            .setDescription(
+`
+⚔️ نظام الكلانات
+
+🎖️ نظام الرتب
+
+🎫 نظام التذاكر
+
+🛡️ إدارة السيرفر
+
+📜 القوانين
+
+✨ تصميم مودرن
+`
+            )
+
+        ]
+
+      });
+
+    }
+
+    // ===========================
+    // CLAN
+    // ===========================
+
+    if (
+      interaction.commandName === "clan"
+    ) {
+
+      const clanName =
+        interaction.options.getString(
+          "name"
+        );
+
+      return interaction.reply({
+
+        embeds: [
+
+          new EmbedBuilder()
+
+            .setTitle(
+              "⚔️ معلومات الكلان"
+            )
+
+            .setDescription(
+`
+🏰 **الكلان:** ${clanName}
+
+👑 **العضو:** ${interaction.user}
+`
+            )
+
+        ]
+
+      });
+
+    }
+
+    // ===========================
+    // CLEAR
+    // ===========================
+
+    if (
+      interaction.commandName === "clear"
+    ) {
+
+      if (
+        !interaction.member.permissions.has(
+          PermissionsBitField.Flags.ManageMessages
+        )
+      ) {
+
+        return interaction.reply({
+
+          content:
+            "❌ تحتاج Manage Messages.",
+
+          ephemeral: true
+
+        });
+
+      }
+
+      const amount =
+        interaction.options.getInteger(
+          "amount"
+        );
+
+      await interaction.channel.bulkDelete(
+        amount,
+        true
+      );
+
+      return interaction.reply({
+
+        content:
+          `🧹 تم مسح ${amount} رسالة.`,
+
+        ephemeral: true
+
+      });
+
+    }
+
+    // ===========================
+    // KICK
+    // ===========================
+
+    if (
+      interaction.commandName === "kick"
+    ) {
+
+      if (
+        !interaction.member.permissions.has(
+          PermissionsBitField.Flags.KickMembers
+        )
+      ) {
+
+        return interaction.reply({
+
+          content:
+            "❌ تحتاج Kick Members.",
+
+          ephemeral: true
+
+        });
+
+      }
+
+      const user =
+        interaction.options.getUser(
+          "user"
+        );
+
+      const member =
+        await interaction.guild.members.fetch(
+          user.id
+        );
+
+      if (!member.kickable) {
+
+        return interaction.reply({
+
+          content:
+            "❌ لا أستطيع طرد هذا العضو.",
+
+          ephemeral: true
+
+        });
+
+      }
+
+      await member.kick();
+
+      return interaction.reply(
+        `👢 تم طرد **${user.tag}**.`
+      );
+
+    }
+
+    // ===========================
+    // BAN
+    // ===========================
+
+    if (
+      interaction.commandName === "ban"
+    ) {
+
+      if (
+        !interaction.member.permissions.has(
+          PermissionsBitField.Flags.BanMembers
+        )
+      ) {
+
+        return interaction.reply({
+
+          content:
+            "❌ تحتاج Ban Members.",
+
+          ephemeral: true
+
+        });
+
+      }
+
+      const user =
+        interaction.options.getUser(
+          "user"
+        );
+
+      await interaction.guild.members.ban(
+        user.id
+      );
+
+      return interaction.reply(
+        `🔨 تم حظر **${user.tag}**.`
+      );
+
+    }
+
+  }
+);
+
+// ===============================
+// تسجيل الدخول
+// ===============================
+
 client.login(TOKEN);
